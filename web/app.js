@@ -11,10 +11,13 @@ function updateStatus(msg) {
 }
 
 // 1. INITIATE NETWORK FIRST
-// Dynamically resolve the signaling server based on the URL the user typed
-const serverIP = window.location.hostname;
-const ws = new WebSocket(`ws://${serverIP}:8080`);
-console.log(`[Network] Attempting to connect to signaling server at ${serverIP}:8080`);
+// On localhost, connect to the local signaling server.
+// In production (Vercel), connect to the deployed Render signaling server.
+const SIGNALING_SERVER = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? `ws://${window.location.hostname}:8080`
+    : 'wss://file-transfer-tool-5igy.onrender.com';
+const ws = new WebSocket(SIGNALING_SERVER);
+console.log(`[Network] Connecting to signaling server: ${SIGNALING_SERVER}`);
 
 ws.onopen = () => updateStatus("Connected to WebSocket. Open Tab #2, then click 'Connect to Peer'.");
 ws.onerror = (err) => updateStatus("WebSocket error! Is Node server running on port 8080?");
