@@ -66,6 +66,8 @@ peerConnection.onicecandidate = (event) => {
     }
 };
 
+let pendingCandidates = [];
+
 ws.onmessage = async (event) => {
     const message = JSON.parse(event.data);
     console.log(`[WebSocket] Received: ${message.type}`);
@@ -77,11 +79,17 @@ ws.onmessage = async (event) => {
                 console.warn(`[WebRTC] Ignored offer: state is ${peerConnection.signalingState}`);
                 return;
             }
+            updateStatus("Received offer from peer. Creating answer...");
             await peerConnection.setRemoteDescription(new RTCSessionDescription(message.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             ws.send(JSON.stringify({ type: 'answer', answer: answer }));
-            console.log("[WebRTC] Answer created and sent");
+            updateStatus("Answer sent to peer. Connecting WebRTC...");
+            
+            for (const c of pendingCandidates) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
+            }
+            pendingCandidates = [];
         } 
         else if (message.type === 'answer') {
             // Only accept an answer if we actually sent an offer
@@ -89,15 +97,22 @@ ws.onmessage = async (event) => {
                 console.warn(`[WebRTC] Ignored answer: state is ${peerConnection.signalingState}`);
                 return;
             }
+            updateStatus("Received answer from peer. Setting remote description...");
             await peerConnection.setRemoteDescription(new RTCSessionDescription(message.answer));
             console.log("[WebRTC] Remote description set from answer");
+            
+            for (const c of pendingCandidates) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(c));
+            }
+            pendingCandidates = [];
         } 
         else if (message.type === 'ice-candidate') {
             // ICE candidates cannot be added until the remote SDP is set
             if (peerConnection.remoteDescription) {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
             } else {
-                console.warn("[WebRTC] Ignored ICE candidate: no remote description set yet");
+                console.warn("[WebRTC] Queued early ICE candidate");
+                pendingCandidates.push(message.candidate);
             }
         }
     } catch (error) {
