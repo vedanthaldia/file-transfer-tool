@@ -59,11 +59,24 @@ loadWasmEngine();
 // 3. SIGNALING LOGIC
 peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-        console.log("[WebRTC] Sending ICE candidate");
+        console.log("[WebRTC] Sending ICE candidate:", event.candidate.candidate);
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }));
         }
+    } else {
+        console.log("[WebRTC] ICE candidate gathering complete.");
     }
+};
+
+peerConnection.onconnectionstatechange = () => {
+    console.log(`[WebRTC] Connection state changed to: ${peerConnection.connectionState}`);
+    if (peerConnection.connectionState === 'failed') {
+        updateStatus("WebRTC connection FAILED. (NAT/Firewall blocking? May need a TURN server)");
+    }
+};
+
+peerConnection.oniceconnectionstatechange = () => {
+    console.log(`[WebRTC] ICE connection state changed to: ${peerConnection.iceConnectionState}`);
 };
 
 let pendingCandidates = [];
